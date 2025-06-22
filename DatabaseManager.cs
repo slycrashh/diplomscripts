@@ -3,6 +3,7 @@ using System.Data;
 using Mono.Data.Sqlite;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 public class DatabaseManager : MonoBehaviour
 {
@@ -11,6 +12,50 @@ public class DatabaseManager : MonoBehaviour
     private string connectionString;
     private float money = 10000f; // Переменная для отслеживания денег
     private static readonly object _dbLock = new object(); // Для синхронизации доступа
+    private List<Decoration> decorations = new List<Decoration>();
+
+    private void InitializeDecor()
+    {
+        decorations.Clear(); // Очищаем на всякий случай
+
+        // Добавляем декорации
+        decorations.Add(new Decoration
+        {
+            DecorationID = 1,
+            Name = "Картина",
+            Price = 500,
+            IncomeMultiplier = 1.1f,
+            IsPurchased = false,
+            PrefabName = "Painting"
+        });
+
+        decorations.Add(new Decoration
+        {
+            DecorationID = 2,
+            Name = "Тумба",
+            Price = 800,
+            IncomeMultiplier = 1.15f,
+            IsPurchased = false,
+            PrefabName = "Cabinet"
+        });
+
+        decorations.Add(new Decoration
+        {
+            DecorationID = 3,
+            Name = "Шкаф",
+            Price = 1200,
+            IncomeMultiplier = 1.2f,
+            IsPurchased = false,
+            PrefabName = "Wardrobe"
+        });
+    }
+    private void ResetDecorations()
+    {
+        foreach (var decor in decorations)
+        {
+            decor.IsPurchased = false;
+        }
+    }
 
     void Start()
     {
@@ -20,6 +65,7 @@ public class DatabaseManager : MonoBehaviour
         CreateDatabase();
         ClearDatabase();
         InitializeData();
+        ResetDecorations();
     }
     private void Awake()
     {
@@ -28,6 +74,7 @@ public class DatabaseManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject); // Сохраняем объект между сценами
+            InitializeDecor();
         }
         else
         {
@@ -145,22 +192,22 @@ public class DatabaseManager : MonoBehaviour
                     try
                     {
                         // Добавление изначально доступных блюд
-                        AddDish(connection, transaction, "Паста", 10.99f, 1, true);
-                        AddDish(connection, transaction, "Салат Цезарь", 8.99f, 120, true);
-                        AddDish(connection, transaction, "Бутерброд", 5.49f, 60, true);
+                        AddDish(connection, transaction, "Паста", 1099f, 30, true);
+                        AddDish(connection, transaction, "Салат Цезарь", 899f, 45, true);
+                        AddDish(connection, transaction, "Бутерброд", 549f, 60, true);
 
                         // Добавление блюд, которые открываются за деньги
-                        AddDish(connection, transaction, "Пицца", 15.99f, 600, false);
-                        AddDish(connection, transaction, "Стейк", 25.99f, 900, false);
-                        AddDish(connection, transaction, "Десерт", 7.99f, 180, false);
+                        AddDish(connection, transaction, "Пицца", 999f, 90, false);
+                        AddDish(connection, transaction, "Стейк", 1599f, 100, false);
+                        AddDish(connection, transaction, "Десерт", 799f, 125, false);
 
                         // Добавление ингредиентов
-                        AddIngredient(connection, transaction, "Томат", 0.50f);
-                        AddIngredient(connection, transaction, "Сыр", 1.00f);
-                        AddIngredient(connection, transaction, "Хлеб", 0.20f);
-                        AddIngredient(connection, transaction, "Курица", 2.00f);
-                        AddIngredient(connection, transaction, "Говядина", 3.50f);
-                        AddIngredient(connection, transaction, "Шоколад", 1.50f);
+                        AddIngredient(connection, transaction, "Томат", 50f);
+                        AddIngredient(connection, transaction, "Сыр", 100f);
+                        AddIngredient(connection, transaction, "Хлеб", 20f);
+                        AddIngredient(connection, transaction, "Курица", 200f);
+                        AddIngredient(connection, transaction, "Говядина", 350f);
+                        AddIngredient(connection, transaction, "Шоколад", 150f);
 
                         // Добавление связей между блюдами и ингредиентами
                         AddDishIngredient(connection, transaction, 1, 1, 2); // Паста: 2 Томата
@@ -174,9 +221,9 @@ public class DatabaseManager : MonoBehaviour
                         AddDishIngredient(connection, transaction, 6, 6, 1); // Десерт: 1 Шоколад
 
                         // Добавление сотрудников с указанием стоимости найма
-                        AddEmployee(connection, transaction, "Алиса", "Повар", 1.2f, 30f, 0); // IsHired = 0
-                        AddEmployee(connection, transaction, "Боб", "Официант", 1.0f, 20f, 0); // IsHired = 0
-                        AddEmployee(connection, transaction, "Кэрол", "Управляющий", 1.5f, 50f, 0); // IsHired = 0
+                        AddEmployee(connection, transaction, "Алиса", "Повар", 1.2f, 100f, 0); // IsHired = 0
+                        AddEmployee(connection, transaction, "Боб", "Официант", 1.0f, 200f, 0); // IsHired = 0
+                        AddEmployee(connection, transaction, "Кэрол", "Управляющий", 1.5f, 500f, 0); // IsHired = 0
 
                         // Инициализация инвентаря
                         InitializeInventory(connection, transaction);
@@ -356,7 +403,42 @@ public class DatabaseManager : MonoBehaviour
             connection.Close();
         }
     }
-
+    /// <summary>
+    /// Проверяет, можно ли потратить указанную сумму
+    /// </summary>
+    public bool CanSpendMoney(float amount)
+    {
+        return money >= amount;
+    }
+    /// <summary>
+    /// Получает информацию о сотруднике (для проверки найма)
+    /// </summary>
+    public bool IsEmployeeHired(int employeeId)
+    {
+        using (var connection = new SqliteConnection(connectionString))
+        {
+            connection.Open();
+            using (var cmd = new SqliteCommand("SELECT IsHired FROM Employees WHERE EmployeeID = @employeeId", connection))
+            {
+                cmd.Parameters.AddWithValue("@employeeId", employeeId);
+                object result = cmd.ExecuteScalar();
+                return result != null && Convert.ToInt32(result) == 1;
+            }
+        }
+    }
+    public float GetEmployeeHireCost(int employeeId)
+    {
+        using (var connection = new SqliteConnection(connectionString))
+        {
+            connection.Open();
+            using (var cmd = new SqliteCommand("SELECT HireCost FROM Employees WHERE EmployeeID = @employeeId", connection))
+            {
+                cmd.Parameters.AddWithValue("@employeeId", employeeId);
+                object result = cmd.ExecuteScalar();
+                return result != null ? Convert.ToSingle(result) : 0f;
+            }
+        }
+    }
     /// <summary>
     /// Открытие блюда (стоимость = Price + 100)
     /// </summary>
@@ -380,10 +462,10 @@ public class DatabaseManager : MonoBehaviour
                 object result = cmd.ExecuteScalar();
                 if (result != null && result != DBNull.Value)
                 {
-                    float unlockCost = Convert.ToSingle(result) + 100f; // Стоимость = Price + 100
+                    float unlockCost = Convert.ToSingle(result) - 400; 
 
                     // Проверяем, достаточно ли денег
-                    if (SpendMoney(unlockCost))
+                    if (true)
                     {
                         // Разблокируем блюдо
                         using (var updateCmd = new SqliteCommand("UPDATE Dishes SET IsUnlocked = 1 WHERE DishID = @dishId", connection))
@@ -485,7 +567,8 @@ public class DatabaseManager : MonoBehaviour
 
         return false;
     }
-
+    
+    
     /// <summary>
     /// Найм сотрудника
     /// </summary>
@@ -513,8 +596,9 @@ public class DatabaseManager : MonoBehaviour
                             updateCmd.Parameters.AddWithValue("@employeeId", employeeId);
                             updateCmd.ExecuteNonQuery();
                         }
-
                         Debug.Log($"Сотрудник с ID {employeeId} успешно нанят!");
+                        UpdateSpeedBonusDisplay(); // Обновляем отображение бонуса
+                        CookingManager.Instance.UpdateCookingCapacity();
                     }
                     else
                     {
@@ -530,6 +614,12 @@ public class DatabaseManager : MonoBehaviour
             connection.Close();
         }
     }
+    private void UpdateSpeedBonusDisplay()
+    {
+        float bonus = (1f - DatabaseManager.Instance.GetCookingSpeedMultiplier()) * 100f;
+        
+    }
+    
 
     /// <summary>
     /// Приготовление блюда
@@ -541,9 +631,6 @@ public class DatabaseManager : MonoBehaviour
             DeductIngredientsForDish(dishId); // Вычитаем ингредиенты
             IncreaseDishStock(dishId); // Увеличиваем запас блюда
             Debug.Log($"Блюдо с ID {dishId} успешно приготовлено. Текущий запас: {GetDishStockQuantity(dishId)}");
-
-            // Уведомляем клиента о готовности блюда
-            NotifyCustomerDishReady(dishId);
         }
         else
         {
@@ -580,8 +667,12 @@ public class DatabaseManager : MonoBehaviour
     /// </summary>
     public void AddMoney(float amount)
     {
-        money += amount;
-        Debug.Log($"Добавлено {amount} денег. Текущие деньги: {money}");
+        MoneyUI moneyUI = FindObjectOfType<MoneyUI>();
+        float multiplier = GetIncomeMultiplier();
+        float finalAmount = amount * multiplier;
+        moneyUI.ShowMoneyChange(finalAmount);
+        money += finalAmount;
+        Debug.Log($"Добавлено {finalAmount} (база: {amount}, множитель: x{multiplier})");
     }
 
     /// <summary>
@@ -628,7 +719,7 @@ public class DatabaseManager : MonoBehaviour
     /// <summary>
     /// Вычитание ингредиентов для приготовления блюда
     /// </summary>
-    private void DeductIngredientsForDish(int dishId)
+    public void DeductIngredientsForDish(int dishId)
     {
         using (var connection = new SqliteConnection(connectionString))
         {
@@ -669,7 +760,7 @@ public class DatabaseManager : MonoBehaviour
     /// <summary>
     /// Увеличение количества блюда в DishStock
     /// </summary>
-    private void IncreaseDishStock(int dishId)
+    public void IncreaseDishStock(int dishId)
     {
         using (var connection = new SqliteConnection(connectionString))
         {
@@ -682,7 +773,7 @@ public class DatabaseManager : MonoBehaviour
             connection.Close();
         }
     }
-
+    
     /// <summary>
     /// Уменьшение количества блюда в DishStock
     /// </summary>
@@ -832,6 +923,7 @@ public class DatabaseManager : MonoBehaviour
         Debug.Log($"В базе данных найдено {unlockedDishes.Count} разблокированных блюд.");
         return unlockedDishes;
     }
+
     public class Dish
     {
         public int DishID { get; set; }
@@ -840,4 +932,124 @@ public class DatabaseManager : MonoBehaviour
         public int CookTime { get; set; }
         public bool IsUnlocked { get; set; }
     }
+    public class Employee
+    {
+        public int EmployeeID { get; set; }
+        public string Name { get; set; }
+        public string Role { get; set; }
+        public float SpeedModifier { get; set; } // Множитель скорости (например, 0.8 = на 20% быстрее)
+        public bool IsHired { get; set; }
+    }
+
+    public float GetCookingSpeedBonus()
+    {
+        float bonus = 0f; // Начальный бонус
+
+        using (var connection = new SqliteConnection(connectionString))
+        {
+            connection.Open();
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM Employees WHERE IsHired = 1";
+            int hiredCount = Convert.ToInt32(command.ExecuteScalar());
+
+            // Формула: 10% ускорения за каждого нанятого
+            bonus = hiredCount * 0.1f;
+        }
+
+        return Mathf.Min(bonus, 0.5f); // Максимум 50% ускорения
+    }
+    // Добавляем в DatabaseManager.cs
+    public float GetCookingSpeedMultiplier()
+    {
+        // Каждый нанятый сотрудник дает 10% ускорения (макс. 50%)
+        int hiredCount = GetHiredEmployeesCount();
+        return 1f - Mathf.Min(hiredCount * 0.2f, 1f); // Например: 0.9 при 10% ускорении
+    }
+
+    public int GetHiredEmployeesCount()
+    {
+        using (var connection = new SqliteConnection(connectionString))
+        {
+            connection.Open();
+            var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Employees WHERE IsHired = 1";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+    }
+    public int GetHiredChefsCount()
+    {
+        using (var connection = new SqliteConnection(connectionString))
+        {
+            connection.Open();
+            var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT COUNT(*) FROM Employees WHERE IsHired = 1 AND Role = 'Повар'";
+            return Convert.ToInt32(cmd.ExecuteScalar());
+        }
+    }
+    public bool IsDecorPurchased(int decorId)
+    {
+        Decoration decor = decorations.Find(d => d.DecorationID == decorId);
+        return decor != null && decor.IsPurchased;
+    }
+
+    // Обновляем метод покупки:
+    public bool BuyDecoration(int decorationId)
+    {
+        Decoration decor = decorations.Find(d => d.DecorationID == decorationId);
+        if (decor == null || decor.IsPurchased) return false;
+
+        if (SpendMoney(decor.Price))
+        {
+            decor.IsPurchased = true;
+            return true;
+        }
+        return false;
+    }
+
+    private void FindAndShowDecor(int decorId)
+    {
+        DecorObject[] allDecor = FindObjectsOfType<DecorObject>(true); // Ищем даже скрытые
+        foreach (var decor in allDecor)
+        {
+            if (decor.decorID == decorId)
+            {
+                decor.ShowDecor();
+                break;
+            }
+        }
+    }
+    public float GetIncomeMultiplier()
+    {
+        float multiplier = 1f;
+        foreach (var decor in decorations)
+        {
+            if (decor.IsPurchased)
+            {
+                multiplier *= decor.IncomeMultiplier;
+            }
+        }
+        return multiplier;
+    }
+    private void LoadDecorations()
+    {
+        foreach (var decor in decorations)
+        {
+            decor.IsPurchased = PlayerPrefs.GetInt($"Decor_{decor.DecorationID}", 0) == 1;
+            if (decor.IsPurchased)
+            {
+                GameObject decorObj = GameObject.Find(decor.PrefabName);
+                if (decorObj != null) decorObj.SetActive(true);
+            }
+        }
+    }
+}
+[System.Serializable]
+public class Decoration
+{
+    public int DecorationID;
+    public string Name;
+    public float Price;
+    public float IncomeMultiplier;
+    public bool IsPurchased;
+    public string PrefabName; // Имя префаба/объекта на сцене
 }

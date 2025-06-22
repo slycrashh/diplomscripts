@@ -5,24 +5,35 @@ public class CustomerSpawner : MonoBehaviour
 {
     public GameObject customerPrefab; // Префаб гостя
     public Transform spawnPoint; // Точка появления гостя
-    public float delayBetweenCustomers = 30f; // Задержка между появлением гостей
 
     void Start()
     {
         // Создаем первого гостя сразу
         SpawnCustomer();
 
-        // Запускаем корутину для создания второго гостя с задержкой
-        StartCoroutine(SpawnCustomerWithDelay());
+        // Создаем второго гостя через минуту
+        StartCoroutine(SpawnSecondCustomer());
     }
 
-    private IEnumerator SpawnCustomerWithDelay()
+    private IEnumerator SpawnSecondCustomer()
     {
-        // Ждем указанное количество секунд
-        yield return new WaitForSeconds(delayBetweenCustomers);
+        // Ждем 60 секунд
+        yield return new WaitForSeconds(60f);
 
         // Создаем второго гостя
         SpawnCustomer();
+
+        // Запускаем корутину для повторного создания гостя каждую минуту
+        StartCoroutine(SpawnCustomerEveryMinute());
+    }
+
+    private IEnumerator SpawnCustomerEveryMinute()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(60f); // Ждем 60 секунд
+            SpawnCustomer(); // Создаем нового гостя
+        }
     }
 
     private void SpawnCustomer()
